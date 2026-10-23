@@ -1,0 +1,59 @@
+ID,Module,"Test case",Input,Expected,Actual,Status
+TC01,Connectivity,"Application connects and the final schema is complete","Open the app / query information_schema","At least 14 tables, 5 views, 14 triggers, 5 routines","14 tables, 5 views, 14 triggers, 5 routines",Pass
+TC02,"CRUD - Book","Create a book with two authors (BOOK + BOOK_AUTHOR)","Title ""Test Driven Development"", authors 5 and 6","BOOK row and 2 BOOK_AUTHOR rows inserted","Book #111 ""Test Driven Development"" with 2 author link(s)",Pass
+TC03,"CRUD - Book","Update a book title","Change title of a test book","Title changed, 1 row affected","1 row updated, title now ""Updated Title""",Pass
+TC04,"CRUD - Book","Delete a book that has no copies","Delete a test book with 0 copies","Row deleted","1 row deleted",Pass
+TC05,"CRUD - Book","Delete a book that still has copies","Delete book 101 (has copies and loans)","Rejected by FOREIGN KEY (referential integrity)","Rejected (error 1451): Cannot delete or change this record because it is still used in BOOK_AUTHOR. Remove those BOOK_AUTHOR records first.",Pass
+TC06,"CRUD - Book","Duplicate ISBN","New book with ISBN 9780451524935 (already used by 1984)","Rejected by UNIQUE constraint","Rejected (error 1062): Duplicate value ""9780451524935"" for isbn. This value must be unique.",Pass
+TC07,"CRUD - Member","Register a new member","Valid member, plan Basic","Member row inserted with status Active","Member #209 Test Member (Active)",Pass
+TC08,"CRUD - Member","Update member status","Set a test member to Inactive","Status becomes Inactive","Status = Inactive",Pass
+TC09,"CRUD - Member","Delete a member who has loans","Delete member 201","Rejected by FOREIGN KEY","Rejected (error 1451): Cannot delete or change this record because it is still used in LOAN. Remove those LOAN records first.",Pass
+TC10,"CRUD - Member","Duplicate member email","New member with email aarav@example.com","Rejected by UNIQUE constraint","Rejected (error 1062): Duplicate value ""aarav@example.com"" for email. This value must be unique.",Pass
+TC11,"CRUD - Copy","Add a copy to a book (weak entity numbering)","Add a copy to book 105 (has copies 1 and 2)","New copy gets copy_no = MAX(copy_no) + 1 for that book","Copy 105-3 created",Pass
+TC12,"CRUD - Catalogue","Add, update and delete an author","Author ""Test Author""","All three operations succeed","Inserted #8, updated 1, deleted 1",Pass
+TC13,"CRUD - Catalogue","Delete a category that books use","Delete category 3 (Technology)","Rejected by FOREIGN KEY","Rejected (error 1451): Cannot delete or change this record because it is still used in BOOK. Remove those BOOK records first.",Pass
+TC14,"CRUD - Fine","Raise a fine manually and delete it","Fine of Rs. 100 on a test loan, then delete","Fine starts Unpaid; delete succeeds while it has no payments","Inserted as 'Unpaid' (trigger ignores the typed 'Paid'), deleted 1",Pass
+TC15,Search,"Search books by title","Keyword 'code'","Clean Code is returned","1 row(s): Clean Code",Pass
+TC16,Search,"Search books by author (through BOOK_AUTHOR)","Author keyword 'Tanenbaum'","Computer Networks is returned","Computer Networks, The C Programming Language",Pass
+TC17,Search,"Search members by email","Keyword 'diya'","Diya Patel is returned","Diya Patel",Pass
+TC18,Search,"Filter loans by status through the LOAN_DETAILS view","Status = 'Overdue' after sp_refresh_statuses","Only open loans past the due date are listed","4 overdue loan(s): 501, 502, 503, 504",Pass
+TC19,Search,"SQL injection attempt in a search box","Keyword: ' OR '1'='1","0 rows - input is treated as text, not SQL","0 row(s) returned",Pass
+TC20,Search,"HTML in data is escaped on output (XSS)",<script>alert(1)</script>,"Printed as text, not executed",&lt;script&gt;alert(1)&lt;/script&gt;,Pass
+TC21,Validation,"Valid member form is accepted","Priya Sharma, priya@example.com, 9876543210","No validation errors",Accepted,Pass
+TC22,Validation,"Book without a title","Title left empty","""Title is required.""","Rejected: Title is required.",Pass
+TC23,Validation,"ISBN with a wrong check digit","ISBN 9780451524936","ISBN rejected","Rejected: ISBN must be a valid 10- or 13-digit ISBN (check digit is verified).",Pass
+TC24,Validation,"Publish year out of range","Year 3000","Year rejected","Rejected: Publish year must be at most 2027.",Pass
+TC25,Validation,"Book with no author selected","Authors empty","At least one author required","Rejected: Select at least one author.",Pass
+TC26,Validation,"Invalid email address",priya@,"Email rejected","Rejected: Email must be a valid email address (e.g. name@example.com).",Pass
+TC27,Validation,"Phone number with 9 digits",987654321,"Phone rejected","Rejected: Phone must be exactly 10 digits.",Pass
+TC28,Validation,"Name containing digits",Priya123,"Name rejected","Rejected: Name may contain only letters, spaces, dots, hyphens and apostrophes.",Pass
+TC29,Validation,"Date of birth in the future","DOB = tomorrow","Date rejected","Rejected: Date of birth cannot be in the future.",Pass
+TC30,Validation,"Impossible calendar date","Join date 2026-02-30","Date rejected","Rejected: Join date must be a valid date (YYYY-MM-DD).",Pass
+TC31,Validation,"Zero or negative payment","Amount 0 and -5","Both rejected","Rejected: Amount paid must be greater than 0. / Amount paid must be a positive amount with at most 2 decimal places.",Pass
+TC32,Validation,"Payment method not in the list","Method 'Cheque'","Method rejected","Rejected: Payment method must be one of: Cash, Card, UPI, Online.",Pass
+TC33,Validation,"Reservation expiring before it starts","Reserved today, expires yesterday",Rejected,"Rejected: Expiry date cannot be before the reservation date.",Pass
+TC34,Validation,"Catalogue: membership plan with 0 max books","max_books = 0",Rejected,"Rejected: Max books must be at least 1.",Pass
+TC35,"DB constraint","Member status outside the allowed list","status = 'Blocked'","Rejected by CHECK","Rejected (error 3819): The value breaks the database rule: status in ('Active','Inactive') (CHECK constraint MEMBER_chk_1)",Pass
+TC36,"DB constraint","Copy with a negative price","price = -10","Rejected by CHECK","Rejected (error 3819): The value breaks the database rule: (price is null) or (price >= 0) (CHECK constraint BOOK_COPY_chk_1)",Pass
+TC37,"DB constraint","Member phone that is not 10 digits","phone = '12345'","Rejected by CHECK (REGEXP)","Rejected (error 3819): Member phone must be exactly 10 digits. (CHECK constraint chk_member_phone)",Pass
+TC38,"DB constraint","Payment method outside the allowed list","method = 'Cheque'","Rejected by CHECK","Rejected (error 3819): The value breaks the database rule: method in ('Cash','Card','UPI','Online') (CHECK constraint PAYMENT_chk_2)",Pass
+TC39,"DB constraint","Loan pointing to a copy that does not exist","Insert loan for copy 101-99",Rejected,"Rejected (error 1644): This copy does not exist.",Pass
+TC40,"Business rule","Issue a book to an eligible member","Active Basic member, available copy","Loan created, due = issue + 7 days, copy becomes Borrowed","Loan #509 Borrowed, 7 days, copy Borrowed",Pass
+TC41,"Business rule","Inactive member cannot borrow","Issue to an Inactive member","Rejected by trigger","Rejected (error 1644): Inactive members cannot borrow books.",Pass
+TC42,"Business rule","Copy already on loan cannot be issued again","Issue the same copy twice","Second issue rejected","Rejected (error 1644): Copy 111-1 is not available (status: Borrowed).",Pass
+TC43,"Business rule","Borrowing limit of the membership plan","Basic plan (2 books): issue a 3rd book","Third issue rejected","Rejected (error 1644): Borrowing limit reached: plan allows 2 book(s) and the member already has 2.",Pass
+TC44,"Business rule","Member with unpaid fines cannot borrow","Member 201 (fine 601 unpaid)","Rejected by trigger","Rejected (error 1644): Member has unpaid fines of Rs. 50.00. Clear them before borrowing.",Pass
+TC45,"Business rule","Return on time","Return a loan on the issue date","Returned, copy Available, no fine","Loan Returned, copy Available, fine Rs. 0.00",Pass
+TC46,"Business rule","Late return creates a fine automatically","Issued 20 days ago on a 7-day plan, returned today","13 days late x Rs. 5 = Rs. 65.00 fine, Unpaid","Fine Rs. 65.00 Unpaid",Pass
+TC47,"Business rule","Fine status follows payments","Rs. 65 fine: pay 25, then 40","Partially Paid, then Paid","Partially Paid -> Paid",Pass
+TC48,"Business rule","Payment larger than the balance","Fine 601 (Rs. 50 due): pay Rs. 80","Rejected by trigger","Rejected (error 1644): Payment exceeds the balance. Balance due is Rs. 50.00.",Pass
+TC49,"Business rule","Deleting a payment recalculates the fine status","Delete payment 702 of fine 603 (Paid)","Fine 603 goes back to Unpaid","Fine 603 is now Unpaid",Pass
+TC50,"Business rule","Fine cannot be reduced below the amount paid","Fine 602 (Rs. 15 paid): set amount to 10","Rejected by trigger","Rejected (error 1644): Fine amount cannot be less than the amount already paid.",Pass
+TC51,"Business rule","Copy on an open loan cannot be marked Available","Copy on loan set to Available manually","Rejected by trigger","Rejected (error 1644): This copy is on an open loan. Return the loan first.",Pass
+TC52,"Business rule","Reservation gets a default 7-day expiry","Reserve with no expiry date","expires_on = reserved_on + 7","Expires 7 days after reservation",Pass
+TC53,"Business rule","Duplicate pending reservation","Same member reserves the same book twice","Second reservation rejected","Rejected (error 1644): This member already has a pending reservation for this book.",Pass
+TC54,"Business rule","Inactive member cannot reserve","Member 205 (Inactive) reserves a book","Rejected by trigger","Rejected (error 1644): Inactive members cannot reserve books.",Pass
+TC55,"Business rule","Issuing a reserved title fulfils the reservation","Member reserves a book, then borrows it","Reservation status becomes Fulfilled","Reservation 406 is Fulfilled",Pass
+TC56,"Business rule","Due date cannot exceed the plan loan period","Basic plan (7 days): direct insert with 30-day loan","Rejected by trigger","Rejected (error 1644): Due date exceeds the plan loan period of 7 days.",Pass
+TC57,"Business rule","Overdue status is refreshed automatically","Open loan issued 10 days ago on a 7-day plan, run sp_refresh_statuses","Loan status becomes Overdue","Loan #509 is Overdue",Pass
+TC58,"Business rule","Returning a loan twice","Return the same loan again","Rejected by procedure","Rejected (error 1644): This loan has already been returned.",Pass

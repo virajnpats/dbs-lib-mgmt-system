@@ -1,0 +1,9 @@
+node_modules/
+.vercel/
+.env
+.env.*
+!.env.example
+.DS_Store
+original/config.local.php
+original/backups/*
+!original/backups/.htaccess

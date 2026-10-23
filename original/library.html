@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Library Management System</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23F2A65A%27/%3E%3Cpath d=%27M9 8v16M13 8v16M18 9l5 15%27 stroke=%27%2314213D%27 stroke-width=%273%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
+<!--
+  library.html - the whole user interface of the Library Management System in ONE file.
+  It talks to the MySQL database LibraryDB through api.php (same folder), which uses PDO
+  prepared statements, the PHP validation rules, the stored procedures and the triggers.
+
+  Open it through the launcher (Start Library.command / .bat): http://127.0.0.1:8000/library.html
+  It also works when double-clicked from disk while the launcher is running.
+  Icons: Lucide (ISC licence), embedded so the page works offline.
+-->
+<style>
+:root {
+  --ink: #14213D; --ink-2: #3D4A5C; --muted: #66707F; --line: #E2DDD3; --line-2: #ECE8E0;
+  --bg: #F6F4EF; --card: #FDFCF9; --side: #14213D; --side-2: #1E2E52; --side-ink: #C9D3E3;
+  --accent: #B8501F; --accent-2: #D9622B; --accent-soft: #FBEDE4; --gold: #F2A65A;
+  --ok-bg: #E6F3EA; --ok: #1D6B3C; --err-bg: #FBEAEA; --err: #9B2525; --warn-bg: #FFF3DC; --warn: #8A5A00;
+  --info-bg: #E8EEF8; --info: #1F3F73;
+  --radius: 12px; --shadow: 0 1px 2px rgba(20,33,61,.06), 0 4px 16px rgba(20,33,61,.05);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif; }
+a { color: var(--accent); }
+code, pre, .mono { font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+.i.sm { width: 15px; height: 15px; vertical-align: -2px; }
+
+/* Layout */
+.app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+.side { background: var(--side); color: var(--side-ink); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 22px 20px 18px; color: #fff; }
+.brand .mark { width: 38px; height: 38px; border-radius: 10px; background: var(--gold); color: var(--ink); display: grid; place-items: center; }
+.brand .mark .i { width: 22px; height: 22px; }
+.brand strong { display: block; font-size: 15px; line-height: 1.2; }
+.brand small { color: var(--side-ink); font-size: 12px; }
+.nav { padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; }
+.nav .sec { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8A97B0; padding: 14px 12px 6px; }
+.nav a { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: 9px; color: var(--side-ink); text-decoration: none; font-size: 14.5px; }
+.nav a:hover { background: var(--side-2); color: #fff; }
+.nav a.active { background: var(--gold); color: var(--ink); font-weight: 600; }
+.side-foot { margin-top: auto; padding: 16px 20px; font-size: 12px; color: #8A97B0; border-top: 1px solid var(--side-2); }
+.side-foot .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #5CC28A; margin-right: 6px; }
+.side-foot .dot.off { background: #E06B6B; }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; gap: 14px; padding: 18px 32px 6px; }
+.top h1 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
+.top .sub { color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+.menu-btn { display: none; }
+#view { padding: 10px 32px 48px; max-width: 1320px; width: 100%; }
+#flash { padding: 0 32px; max-width: 1320px; }
+
+/* Cards */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 18px; box-shadow: var(--shadow); }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.card-head h2 { margin: 0; font-size: 17px; }
+.card-head .note { color: var(--muted); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.grid2 > .card { margin-bottom: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; text-decoration: none; color: inherit; box-shadow: var(--shadow); display: block; }
+a.stat:hover { border-color: var(--accent-2); }
+.stat .lbl { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.stat .val { font-size: 28px; font-weight: 700; margin-top: 6px; white-space: nowrap; letter-spacing: -.01em; }
+.stat.alert .val { color: var(--err); }
+
+/* Forms */
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px 16px; align-items: end; }
+.form .wide { grid-column: 1 / -1; }
+label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+label > input, label > select, label > textarea { margin-top: 5px; }
+.req { color: var(--err); }
+.hint { font-weight: 400; color: var(--muted); }
+input, select, textarea { display: block; width: 100%; padding: 9px 11px; border: 1px solid #CFC8BB; border-radius: 8px; background: #fff; font: inherit; color: var(--ink); }
+input:focus, select:focus { outline: 3px solid #F6D2BD; border-color: var(--accent-2); }
+input:disabled, select:disabled { background: #F1EEE8; color: var(--muted); }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; }
+.checks label { display: flex; align-items: center; gap: 7px; font-weight: 400; }
+.checks input { width: auto; display: inline-block; margin: 0; }
+.form-errors:empty { display: none; }
+.form-errors { grid-column: 1 / -1; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+button, .btn { display: inline-flex; align-items: center; gap: 7px; background: var(--ink); color: #fff; border: 0; padding: 9px 15px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+button:hover, .btn:hover { background: #24365F; }
+.btn.accent, button.accent { background: var(--accent); }
+.btn.accent:hover, button.accent:hover { background: #9C4219; }
+.btn.ghost, button.ghost { background: #EFEBE3; color: var(--ink); }
+.btn.ghost:hover, button.ghost:hover { background: #E4DED3; }
+button.danger { background: #fff; color: var(--err); border: 1px solid #E8C4C4; }
+button.danger:hover { background: var(--err-bg); }
+button.small, .btn.small { padding: 5px 10px; font-size: 12.5px; border-radius: 7px; }
+button:disabled { opacity: .55; cursor: progress; }
+form.inline { display: inline-flex; gap: 5px; align-items: center; margin: 0; }
+form.inline input[type=date] { width: 148px; padding: 5px 7px; font-size: 12.5px; }
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.filters input, .filters select { width: auto; min-width: 170px; }
+.filters .search { position: relative; }
+.filters .search input { padding-left: 34px; min-width: 300px; }
+.filters .search .i { position: absolute; left: 11px; top: 11px; color: var(--muted); }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.tabs a { padding: 9px 14px; text-decoration: none; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: 14px; }
+.tabs a.active { color: var(--ink); border-bottom-color: var(--accent-2); font-weight: 600; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { padding: 9px 10px; border-bottom: 1px solid var(--line-2); text-align: left; vertical-align: middle; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; white-space: nowrap; background: #F7F4EE; }
+tbody tr:hover { background: #FBF9F5; }
+td.num, th.num { text-align: right; }
+td.nw { white-space: nowrap; }
+td.empty { color: var(--muted); text-align: center; padding: 26px 10px; }
+.muted { color: var(--muted); font-size: 13px; }
+.null { color: #A6ADB8; font-style: italic; }
+.strong { font-weight: 600; }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+td:last-child .row-actions { flex-wrap: nowrap; }
+
+/* Badges */
+.badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #ECE8E0; color: var(--ink-2); white-space: nowrap; }
+.b-ok { background: var(--ok-bg); color: var(--ok); }
+.b-warn { background: var(--warn-bg); color: var(--warn); }
+.b-err { background: var(--err-bg); color: var(--err); }
+.b-grey { background: #ECEEF1; color: #59636E; }
+
+/* Messages */
+.msg { display: flex; gap: 10px; align-items: flex-start; padding: 11px 14px; border-radius: 10px; margin: 0 0 12px; border: 1px solid transparent; font-size: 14px; }
+.msg ul { margin: 0; padding-left: 18px; }
+.msg.success { background: var(--ok-bg); color: var(--ok); border-color: #C4E3CF; }
+.msg.error { background: var(--err-bg); color: var(--err); border-color: #F0C8C8; }
+.msg.info { background: var(--info-bg); color: var(--info); border-color: #CBD7EC; }
+.msg .x { margin-left: auto; background: none; color: inherit; padding: 0; }
+
+/* Detail lists, SQL */
+.kv { display: grid; grid-template-columns: 150px 1fr; gap: 7px 14px; font-size: 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+pre.sql { background: var(--ink); color: #E8EDF5; padding: 14px 16px; border-radius: 10px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; margin: 10px 0 14px; }
+.qlayout { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+.qnav { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+.qnav .grp { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 12px 10px 4px; }
+.qnav a { display: block; padding: 7px 10px; border-radius: 7px; text-decoration: none; color: var(--ink); font-size: 13.5px; }
+.qnav a:hover { background: #F2EEE7; }
+.qnav a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.loading { color: var(--muted); padding: 40px 0; text-align: center; }
+
+/* Offline screen */
+.offline { max-width: 680px; margin: 40px auto; }
+.offline ol { padding-left: 20px; line-height: 1.8; }
+
+/* Responsive */
+@media (max-width: 960px) {
+  .app { grid-template-columns: 1fr; }
+  .side { position: fixed; inset: 0 auto 0 0; width: 260px; z-index: 20; transform: translateX(-100%); transition: transform .2s; }
+  .side.open { transform: none; box-shadow: 0 0 0 100vmax rgba(20,33,61,.35); }
+  .menu-btn { display: inline-flex; background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .top { padding: 14px 16px 4px; }
+  #view { padding: 8px 16px 40px; }
+  #flash { padding: 0 16px; }
+  .grid2, .qlayout { grid-template-columns: 1fr; }
+  .qnav { position: static; max-height: none; }
+  .filters .search input { min-width: 0; width: 100%; }
+  .filters .search { flex: 1 1 100%; }
+}
+@media print {
+  body { background: #fff; }
+  .side, .top .menu-btn, .no-print, form, .row-actions, #flash { display: none !important; }
+  .app { display: block; }
+  #view { padding: 0; max-width: none; }
+  .card, .stat { box-shadow: none; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand">
+      <div class="mark" data-icon="library"></div>
+      <div><strong>Library Management</strong><small>LibraryDB · Review 3</small></div>
+    </div>
+    <nav class="nav" id="nav">
+      <a href="#dashboard" data-route="dashboard"><span data-icon="layout-dashboard"></span>Dashboard</a>
+      <div class="sec">Catalogue</div>
+      <a href="#books" data-route="books"><span data-icon="book-open"></span>Books</a>
+      <a href="#copies" data-route="copies"><span data-icon="book-copy"></span>Copies</a>
+      <a href="#catalogue" data-route="catalogue"><span data-icon="folder-tree"></span>Authors, staff &amp; more</a>
+      <div class="sec">Circulation</div>
+      <a href="#members" data-route="members"><span data-icon="users"></span>Members</a>
+      <a href="#loans" data-route="loans"><span data-icon="arrow-left-right"></span>Loans</a>
+      <a href="#returns" data-route="returns"><span data-icon="undo-2"></span>Returns</a>
+      <a href="#reservations" data-route="reservations"><span data-icon="bookmark"></span>Reservations</a>
+      <a href="#fines" data-route="fines"><span data-icon="indian-rupee"></span>Fines &amp; payments</a>
+      <div class="sec">Database</div>
+      <a href="#reports" data-route="reports"><span data-icon="chart-column"></span>Reports</a>
+      <a href="#queries" data-route="queries"><span data-icon="database"></span>SQL queries</a>
+      <a href="#tests" data-route="tests"><span data-icon="flask-conical"></span>Test cases</a>
+    </nav>
+    <div class="side-foot" id="dbinfo"><span class="dot off"></span>Connecting…</div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <button class="menu-btn small" id="menuBtn" aria-label="Menu"><span data-icon="layout-dashboard"></span></button>
+      <div><h1 id="title">Dashboard</h1><div class="sub" id="subtitle"></div></div>
+    </header>
+    <div id="flash" aria-live="polite"></div>
+    <main id="view"><div class="loading">Loading…</div></main>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ====================================================================
+   Icons (Lucide, ISC licence) - embedded so the page works offline
+   ==================================================================== */
+const ICONS = {"layout-dashboard":"<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/> <rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/> <rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/> <rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/>","book-open":"<path d=\"M12 7v14\"/> <path d=\"M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z\"/>","library":"<path d=\"m16 6 4 14\"/> <path d=\"M12 6v14\"/> <path d=\"M8 8v12\"/> <path d=\"M4 4v16\"/>","users":"<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/> <circle cx=\"9\" cy=\"7\" r=\"4\"/> <path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/> <path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>","arrow-left-right":"<path d=\"M8 3 4 7l4 4\"/> <path d=\"M4 7h16\"/> <path d=\"m16 21 4-4-4-4\"/> <path d=\"M20 17H4\"/>","undo-2":"<path d=\"M9 14 4 9l5-5\"/> <path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11\"/>","bookmark":"<path d=\"m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z\"/>","indian-rupee":"<path d=\"M6 3h12\"/> <path d=\"M6 8h12\"/> <path d=\"m6 13 8.5 8\"/> <path d=\"M6 13h3\"/> <path d=\"M9 13c6.667 0 6.667-10 0-10\"/>","folder-tree":"<path d=\"M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z\"/> <path d=\"M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z\"/> <path d=\"M3 5a2 2 0 0 0 2 2h3\"/> <path d=\"M3 3v13a2 2 0 0 0 2 2h3\"/>","chart-column":"<path d=\"M3 3v16a2 2 0 0 0 2 2h16\"/> <path d=\"M18 17V9\"/> <path d=\"M13 17V5\"/> <path d=\"M8 17v-3\"/>","database":"<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/> <path d=\"M3 5V19A9 3 0 0 0 21 19V5\"/> <path d=\"M3 12A9 3 0 0 0 21 12\"/>","flask-conical":"<path d=\"M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2\"/> <path d=\"M6.453 15h11.094\"/> <path d=\"M8.5 2h7\"/>","search":"<circle cx=\"11\" cy=\"11\" r=\"8\"/> <path d=\"m21 21-4.3-4.3\"/>","plus":"<path d=\"M5 12h14\"/> <path d=\"M12 5v14\"/>","pencil":"<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\"/> <path d=\"m15 5 4 4\"/>","trash-2":"<path d=\"M3 6h18\"/> <path d=\"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6\"/> <path d=\"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2\"/> <line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/> <line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/>","x":"<path d=\"M18 6 6 18\"/> <path d=\"m6 6 12 12\"/>","printer":"<path d=\"M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2\"/> <path d=\"M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6\"/> <rect x=\"6\" y=\"14\" width=\"12\" height=\"8\" rx=\"1\"/>","circle-check":"<circle cx=\"12\" cy=\"12\" r=\"10\"/> <path d=\"m9 12 2 2 4-4\"/>","circle-alert":"<circle cx=\"12\" cy=\"12\" r=\"10\"/> <line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\"/> <line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\"/>","refresh-cw":"<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/> <path d=\"M21 3v5h-5\"/> <path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/> <path d=\"M8 16H3v5\"/>","eye":"<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/> <circle cx=\"12\" cy=\"12\" r=\"3\"/>","calendar-clock":"<path d=\"M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5\"/> <path d=\"M16 2v4\"/> <path d=\"M8 2v4\"/> <path d=\"M3 10h5\"/> <path d=\"M17.5 17.5 16 16.3V14\"/> <circle cx=\"16\" cy=\"16\" r=\"6\"/>","book-copy":"<path d=\"M2 16V4a2 2 0 0 1 2-2h11\"/> <path d=\"M22 18H11a2 2 0 1 0 0 4h10.5a.5.5 0 0 0 .5-.5v-15a.5.5 0 0 0-.5-.5H11a2 2 0 0 0-2 2v12\"/> <path d=\"M5 14H4a2 2 0 1 0 0 4h1\"/>"};
+const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+function paintIcons(root = document) {
+  root.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); el.removeAttribute('data-icon'); });
+}
+
+/* ====================================================================
+   Talking to api.php
+   ==================================================================== */
+function store(key, value) {
+  try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) { return null; }
+}
+const DEFAULT_FILE_API = 'http://127.0.0.1:8000/api.php';
+function apiBase() {
+  if (location.protocol === 'file:') return store('libraryApi') || DEFAULT_FILE_API;
+  return new URL('api.php', location.href).href;
+}
+
+class ApiError extends Error {
+  constructor(errors, offline = false) { super(errors.join(' ')); this.errors = errors; this.offline = offline; }
+}
+
+async function call(action, params = {}, body = null) {
+  const url = new URL(apiBase());
+  url.searchParams.set('action', action);
+  if (!body) Object.entries(params).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) url.searchParams.set(k, v); });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: body ? 'POST' : 'GET',
+      headers: Object.assign({ 'X-Requested-With': 'LibraryApp' }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    throw new ApiError(['The backend is not running.'], true);
+  }
+  let json;
+  try { json = await res.json(); } catch (e) {
+    throw new ApiError([`The server sent an unexpected answer (HTTP ${res.status}). Is api.php in the same folder?`], res.status === 404);
+  }
+  if (json.db_down) throw new ApiError(json.errors, true);
+  if (!json.ok) throw new ApiError(json.errors || ['Request failed.']);
+  return json;
+}
+const get = (action, params) => call(action, params).then(j => j.data);
+const post = (action, body) => call(action, {}, body || {});
+
+/* Drop-down lists, refreshed after every change */
+let LK = null;
+async function lookups(force = false) { if (!LK || force) LK = await get('lookups'); return LK; }
+
+/* ====================================================================
+   Small HTML helpers
+   ==================================================================== */
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = v => 'Rs. ' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dash = v => (v === null || v === undefined || v === '') ? '<span class="null">—</span>' : esc(v);
+const attr = obj => esc(JSON.stringify(obj));
+
+function badge(s) {
+  if (!s) return '';
+  const map = { Available: 'ok', Active: 'ok', Returned: 'ok', Paid: 'ok', Fulfilled: 'ok', Pass: 'ok', New: 'ok', Good: 'ok',
+                Borrowed: 'warn', Pending: 'warn', 'Partially Paid': 'warn', Reserved: 'warn', Fair: 'warn',
+                Overdue: 'err', Unpaid: 'err', Inactive: 'err', Fail: 'err', Damaged: 'err',
+                Maintenance: 'grey', Cancelled: 'grey', Expired: 'grey' };
+  return `<span class="badge b-${map[s] || 'grey'}">${esc(s)}</span>`;
+}
+function opts(list, selected, placeholder) {
+  const sel = Array.isArray(selected) ? selected.map(String) : [String(selected ?? '')];
+  return (placeholder !== undefined ? `<option value="">${esc(placeholder)}</option>` : '') +
+    (list || []).map(o => `<option value="${esc(o.id)}"${sel.includes(String(o.id)) ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
+}
+const enumOpts = (values, selected, placeholder) => opts(values.map(v => ({ id: v, label: v })), selected, placeholder);
+function table(headers, rows, emptyText = 'Nothing to show.') {
+  const head = headers.map(h => typeof h === 'string' ? `<th>${esc(h)}</th>` : `<th class="${h.cls || ''}">${esc(h.t)}</th>`).join('');
+  const body = rows.length ? rows.join('') : `<tr><td class="empty" colspan="${headers.length}">${esc(emptyText)}</td></tr>`;
+  return `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+function resultTable(rows) {
+  if (!rows.length) return '<p class="muted">No rows returned.</p>';
+  const cols = Object.keys(rows[0]);
+  return table(cols, rows.map(r => '<tr>' + cols.map(c => `<td>${r[c] === null ? '<span class="null">NULL</span>' : esc(r[c])}</td>`).join('') + '</tr>'))
+    + `<p class="muted">${rows.length} row(s)</p>`;
+}
+function searchBox(name, value, placeholder) {
+  return `<label class="search">${icon('search', 'sm')}<input type="search" name="${name}" value="${esc(value || '')}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}"></label>`;
+}
+const today = () => (LK && LK.today) || new Date().toISOString().slice(0, 10);
+
+/* ====================================================================
+   Messages
+   ==================================================================== */
+let pending = [];
+function flash(type, msgs) {
+  pending.push({ type, msgs: [].concat(msgs) });
+}
+function showFlashes(scroll = false) {
+  const box = document.getElementById('flash');
+  box.innerHTML = pending.map(f => `<div class="msg ${f.type}">${icon(f.type === 'success' ? 'circle-check' : f.type === 'error' ? 'circle-alert' : 'eye')}
+    <div>${f.msgs.length > 1 ? '<ul>' + f.msgs.map(m => `<li>${esc(m)}</li>`).join('') + '</ul>' : esc(f.msgs[0])}</div>
+    <button class="x" data-close aria-label="Dismiss">${icon('x', 'sm')}</button></div>`).join('');
+  pending = [];
+  if (scroll && box.firstElementChild) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+/* ====================================================================
+   Router: #view?param=value
+   ==================================================================== */
+const views = {};
+const TITLES = {
+  dashboard: ['Dashboard', 'Live figures from LibraryDB'], books: ['Books', 'BOOK + BOOK_AUTHOR · add, edit, delete, search'],
+  copies: ['Book copies', 'BOOK_COPY · weak entity identified by (book_id, copy_no)'],
+  members: ['Members', 'MEMBER · with plan limits and fines from MEMBER_SUMMARY'], member: ['Member', 'Profile, loans, reservations and fines'],
+  loans: ['Loans', 'Issue with sp_issue_book · rules checked by trg_loan_before_insert'],
+  returns: ['Book returns', 'Return desk · sp_return_book frees the copy and raises late fines'],
+  reservations: ['Reservations', 'RESERVATION · one pending reservation per member per title'],
+  fines: ['Fines & payments', 'FINE + PAYMENT · status kept by triggers'],
+  catalogue: ['Catalogue', 'Authors, publishers, categories, branches, staff and plans'],
+  reports: ['Reports', 'Printable reports from live SQL'], queries: ['SQL queries', '25 important queries run through the application'],
+  tests: ['Test cases', '58 automated tests · run inside a transaction and rolled back'],
+};
+function route() {
+  const h = location.hash.replace(/^#/, '') || 'dashboard';
+  const [name, qs] = h.split('?');
+  return { name: views[name] ? name : 'dashboard', params: Object.fromEntries(new URLSearchParams(qs || '')) };
+}
+function go(name, params = {}) {
+  const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+  const target = '#' + name + (Object.keys(clean).length ? '?' + new URLSearchParams(clean) : '');
+  if (location.hash === target) render(); else location.hash = target;
+}
+
+const view = document.getElementById('view');
+async function render() {
+  const { name, params } = route();
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('active', a.dataset.route === (name === 'member' ? 'members' : name)));
+  document.getElementById('side').classList.remove('open');
+  const [t, sub] = TITLES[name];
+  document.getElementById('title').textContent = t;
+  document.getElementById('subtitle').textContent = sub;
+  document.title = t + ' | Library Management System';
+  try {
+    const html = await views[name](params);
+    if (html !== undefined) view.innerHTML = html;
+    showFlashes();
+    paintIcons(view);
+    if (views[name].after) views[name].after(params);
+  } catch (e) {
+    if (e.offline) return showOffline(e.errors[0]);
+    view.innerHTML = `<div class="msg error">${icon('circle-alert')}<div>${esc((e.errors || [e.message]).join(' '))}</div></div>`;
+  }
+}
+window.addEventListener('hashchange', render);
+
+/* ====================================================================
+   Forms and buttons (event delegation)
+   ==================================================================== */
+function formData(form) {
+  const o = {};
+  for (const el of form.elements) {
+    if (!el.name || el.disabled) continue;
+    if (el.type === 'checkbox' && el.hasAttribute('data-multi')) { (o[el.name] = o[el.name] || []); if (el.checked) o[el.name].push(el.value); }
+    else if (el.type === 'checkbox') o[el.name] = el.checked ? el.value : '';
+    else o[el.name] = el.value;
+  }
+  return o;
+}
+function fillForm(form, data) {
+  for (const el of form.elements) {
+    if (!el.name || !(el.name in data)) continue;
+    if (el.type === 'checkbox' && el.hasAttribute('data-multi')) el.checked = [].concat(data[el.name] || []).map(String).includes(el.value);
+    else el.value = data[el.name] ?? '';
+  }
+}
+
+view.addEventListener('submit', async e => {
+  const form = e.target;
+  if (form.dataset.filter) {                       // search / filter forms only change the address
+    e.preventDefault();
+    go(form.dataset.filter, Object.assign({}, form.dataset.keep ? JSON.parse(form.dataset.keep) : {}, formData(form)));
+    return;
+  }
+  if (!form.dataset.action) return;
+  e.preventDefault();
+  if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
+  const btn = form.querySelector('button[type=submit], button:not([type])');
+  const errBox = form.querySelector('.form-errors');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await post(form.dataset.action, Object.assign({}, form.dataset.extra ? JSON.parse(form.dataset.extra) : {}, formData(form)));
+    LK = null;
+    flash('success', res.message);
+    const editing = form.dataset.idField && form.elements[form.dataset.idField] && form.elements[form.dataset.idField].value;
+    if (form.dataset.next && !editing) {
+      const next = form.dataset.next.replace(/\{(\w+)\}/g, (_, k) => (res.data && res.data[k]) ?? '');
+      const [n, qs] = next.split('?');
+      go(n, Object.fromEntries(new URLSearchParams(qs || '')));
+    } else {
+      const { name, params } = route();
+      go(name, form.dataset.reset ? Object.fromEntries(Object.entries(params).filter(([k]) => !form.dataset.reset.split(',').includes(k))) : params);
+    }
+  } catch (err) {
+    if (err.offline) return showOffline(err.errors[0]);
+    if (errBox) {
+      document.getElementById('flash').innerHTML = '';
+      errBox.innerHTML = `<div class="msg error">${icon('circle-alert')}<div>${err.errors.length > 1 ? '<ul>' + err.errors.map(m => `<li>${esc(m)}</li>`).join('') + '</ul>' : esc(err.errors[0])}</div></div>`;
+      errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else { flash('error', err.errors); showFlashes(true); }
+  } finally { if (btn) btn.disabled = false; }
+});
+
+document.addEventListener('click', async e => {
+  const close = e.target.closest('[data-close]');
+  if (close) { close.closest('.msg').remove(); return; }
+  const doBtn = e.target.closest('[data-do]');
+  if (doBtn) {
+    if (doBtn.dataset.confirm && !confirm(doBtn.dataset.confirm)) return;
+    doBtn.disabled = true;
+    try {
+      const res = await post(doBtn.dataset.do, JSON.parse(doBtn.dataset.args || '{}'));
+      LK = null;
+      flash('success', res.message);
+      render();
+    } catch (err) {
+      if (err.offline) return showOffline(err.errors[0]);
+      flash('error', err.errors); showFlashes(true);
+    } finally { doBtn.disabled = false; }
+    return;
+  }
+  const edit = e.target.closest('[data-edit]');
+  if (edit) { const fn = editors[edit.dataset.edit]; if (fn) fn(JSON.parse(edit.dataset.row)); }
+});
+document.getElementById('menuBtn').addEventListener('click', () => document.getElementById('side').classList.toggle('open'));
+
+/* Put a row into the form at the top of the page for editing */
+const editors = {};
+function startEdit(formId, row, title) {
+  const form = document.getElementById(formId);
+  form.reset();
+  fillForm(form, row);
+  const head = form.closest('.card').querySelector('h2');
+  head.textContent = title;
+  form.querySelector('.cancel-edit').hidden = false;
+  form.querySelector('.form-errors').innerHTML = '';
+  form.closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  return form;
+}
+function cancelButton() { return `<button type="button" class="ghost cancel-edit" hidden onclick="render()">Cancel edit</button>`; }
+
+/* ====================================================================
+   VIEWS
+   ==================================================================== */
+
+/* ---------- Dashboard ---------- */
+views.dashboard = async () => {
+  const d = await get('dashboard');
+  const s = d.stats;
+  const stat = (href, ic, label, value, alert) =>
+    `<a class="stat ${alert ? 'alert' : ''}" href="${href}"><div class="lbl">${icon(ic, 'sm')}${esc(label)}</div><div class="val">${value}</div></a>`;
+  return `
+  <section class="stats">
+    ${stat('#books', 'book-open', 'Book titles', esc(s.titles))}
+    ${stat('#copies?status=Available', 'book-copy', 'Copies available', `${esc(s.available)} <span class="muted">/ ${esc(s.copies)}</span>`)}
+    ${stat('#members?status=Active', 'users', 'Active members', `${esc(s.active_members)} <span class="muted">/ ${esc(s.members)}</span>`)}
+    ${stat('#loans?filter=open', 'arrow-left-right', 'Books on loan', esc(s.open_loans))}
+    ${stat('#returns?show=overdue', 'calendar-clock', 'Overdue loans', esc(s.overdue), s.overdue > 0)}
+    ${stat('#reservations?status=Pending', 'bookmark', 'Pending reservations', esc(s.pending_res))}
+    ${stat('#fines?status=open', 'indian-rupee', 'Fines outstanding', money(s.fines_due), s.fines_due > 0)}
+  </section>
+  <section class="card no-print">
+    <div class="card-head"><h2>Quick actions</h2></div>
+    <div class="actions">
+      <a class="btn accent" href="#loans">${icon('arrow-left-right', 'sm')}Issue a book</a>
+      <a class="btn accent" href="#returns">${icon('undo-2', 'sm')}Return a book</a>
+      <a class="btn ghost" href="#members">${icon('plus', 'sm')}Add member</a>
+      <a class="btn ghost" href="#books">${icon('plus', 'sm')}Add book</a>
+      <a class="btn ghost" href="#reservations">${icon('bookmark', 'sm')}New reservation</a>
+      <a class="btn ghost" href="#fines">${icon('indian-rupee', 'sm')}Record payment</a>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Overdue loans</h2><span class="note">view OVERDUE_LOANS</span></div>
+    ${table(['Loan', 'Member', 'Phone', 'Book', 'Due date', { t: 'Days overdue', cls: 'num' }, { t: 'Fine if returned today', cls: 'num' }, ''],
+      d.overdue.map(o => `<tr><td>${esc(o.loan_id)}</td><td><a href="#member?id=${esc(o.member_id)}">${esc(o.member_name)}</a></td><td>${dash(o.phone)}</td>
+        <td>${esc(o.book_title)} <span class="muted">(copy ${esc(o.copy_no)})</span></td><td class="nw">${esc(o.due_date)}</td>
+        <td class="num">${esc(o.days_overdue)}</td><td class="num">${money(o.days_overdue * LK_fine())}</td>
+        <td><a class="btn small ghost" href="#returns?q=${esc(o.loan_id)}">Return</a></td></tr>`), 'No overdue loans.')}
+  </section>
+  <div class="grid2">
+    <section class="card"><div class="card-head"><h2>Recent loans</h2><a href="#loans">All loans</a></div>
+      ${table(['Loan', 'Member', 'Book', 'Issued', 'Status'], d.recent.map(r => `<tr><td>${esc(r.loan_id)}</td><td>${esc(r.member_name)}</td><td>${esc(r.book_title)}</td><td class="nw">${esc(r.issue_date)}</td><td>${badge(r.status)}</td></tr>`), 'No loans yet.')}
+    </section>
+    <section class="card"><div class="card-head"><h2>Most borrowed titles</h2><a href="#queries?q=19">See the SQL</a></div>
+      ${table(['Title', { t: 'Times borrowed', cls: 'num' }], d.popular.map(p => `<tr><td>${esc(p.title)}</td><td class="num">${esc(p.times_borrowed)}</td></tr>`), 'No loans yet.')}
+    </section>
+  </div>`;
+};
+let FINE_PER_DAY = 5;
+const LK_fine = () => FINE_PER_DAY;
+
+/* ---------- Books ---------- */
+views.books = async p => {
+  const [lk, books] = await Promise.all([lookups(), get('books', p)]);
+  const authors = lk.authors.map(a => `<label><input type="checkbox" name="authors" value="${esc(a.id)}" data-multi> ${esc(a.label)}</label>`).join('');
+  editors.book = row => startEdit('bookForm', Object.assign({}, row, { authors: String(row.author_ids || '').split(',') }), `Edit book #${row.book_id}`);
+  return `
+  <section class="card">
+    <div class="card-head"><h2>Add a new book</h2><span class="note">Authors go into BOOK_AUTHOR (many-to-many) in the same transaction</span></div>
+    <form id="bookForm" class="form" data-action="book_save" data-next="copies?book_id={book_id}" data-id-field="book_id">
+      <div class="form-errors"></div>
+      <input type="hidden" name="book_id" value="">
+      <label class="wide">Title <span class="req">*</span><input name="title" required maxlength="200"></label>
+      <label>ISBN <span class="hint">10 or 13 digits</span><input name="isbn" maxlength="20" pattern="[0-9Xx\\- ]{10,17}"></label>
+      <label>Language<input name="language" maxlength="40" value="English"></label>
+      <label>Publish year<input type="number" name="publish_year" min="1000" max="${new Date().getFullYear() + 1}"></label>
+      <label>Edition<input name="edition" maxlength="30"></label>
+      <label>Publisher<select name="publisher_id">${opts(lk.publishers, '', '— None —')}</select></label>
+      <label>Category <span class="req">*</span><select name="category_id" required>${opts(lk.categories, '', '— Select —')}</select></label>
+      <div class="wide"><label>Authors <span class="req">*</span> <span class="hint">new authors: Authors, staff &amp; more</span></label><div class="checks">${authors}</div></div>
+      <div class="actions wide"><button type="submit">${icon('circle-check', 'sm')}Save book</button>${cancelButton()}</div>
+    </form>
+  </section>
+  <section class="card">
+    <form class="filters" data-filter="books">
+      ${searchBox('q', p.q, 'Title, ISBN, author or book ID')}
+      <select name="category" aria-label="Category">${opts(lk.categories, p.category, 'All categories')}</select>
+      <select name="avail" aria-label="Availability"><option value="">All books</option><option value="1" ${p.avail === '1' ? 'selected' : ''}>Only with a free copy</option></select>
+      <button>Search</button><a class="btn ghost" href="#books">Clear</a>
+    </form>
+    ${table(['ID', 'Title', 'Author(s)', 'ISBN', 'Year', 'Category', 'Publisher', { t: 'Free / copies', cls: 'num' }, ''],
+      books.map(b => `<tr>
+        <td>${esc(b.book_id)}</td>
+        <td><span class="strong">${esc(b.title)}</span><br><span class="muted">${dash(b.edition)} ed. · ${dash(b.language)}</span></td>
+        <td>${dash(b.authors)}</td><td class="mono">${dash(b.isbn)}</td><td>${dash(b.publish_year)}</td><td>${dash(b.category_name)}</td><td>${dash(b.publisher)}</td>
+        <td class="num">${b.available_copies > 0 ? `<b>${esc(b.available_copies)}</b>` : badge('None free')} / ${esc(b.total_copies)}</td>
+        <td><div class="row-actions">
+          <button class="small ghost" data-edit="book" data-row="${attr(b)}">${icon('pencil', 'sm')}Edit</button>
+          <a class="btn small ghost" href="#copies?book_id=${esc(b.book_id)}">Copies</a>
+          <button class="small danger" data-do="book_delete" data-args='{"book_id":${Number(b.book_id)}}' data-confirm="Delete “${esc(b.title)}”? Books that still have copies or reservations cannot be deleted.">${icon('trash-2', 'sm')}</button>
+        </div></td></tr>`), p.q || p.category || p.avail ? 'No books match your search.' : 'No books yet.')}
+    <p class="muted">${books.length} book(s)</p>
+  </section>`;
+};
+
+/* ---------- Copies ---------- */
+views.copies = async p => {
+  const [lk, copies] = await Promise.all([lookups(), get('copies', p)]);
+  const bookList = lk.books;
+  editors.copy = row => {
+    const f = startEdit('copyForm', row, `Edit copy ${row.book_id}-${row.copy_no}`);
+    f.book_id.disabled = true;
+    f.copy_show.value = row.copy_no;
+    const locked = row.status === 'Borrowed';
+    f.status.innerHTML = enumOpts(locked ? ['Borrowed'] : ['Available', 'Reserved', 'Maintenance'], row.status);
+    f.status.disabled = locked;
+    f.querySelector('.lock-note').hidden = !locked;
+  };
+  return `
+  <section class="card">
+    <div class="card-head"><h2>Add a copy</h2><span class="note">copy_no is numbered 1, 2, 3 … separately for every book</span></div>
+    <form id="copyForm" class="form" data-action="copy_save" data-extra='{}'>
+      <div class="form-errors"></div>
+      <input type="hidden" name="copy_no" value="">
+      <label class="wide">Book <span class="req">*</span><select name="book_id" required>${opts(bookList, p.book_id, '— Select book —')}</select></label>
+      <label>Copy number<input name="copy_show" value="next number" disabled></label>
+      <label>Shelf location <span class="req">*</span><input name="shelf_location" required maxlength="50" pattern="[A-Za-z0-9\\- ]+" placeholder="A-04"></label>
+      <label>Condition <span class="req">*</span><select name="condition" required>${enumOpts(lk.enums.copy_conditions, 'New')}</select></label>
+      <label>Status <span class="req">*</span><select name="status" required>${enumOpts(['Available', 'Reserved', 'Maintenance'], 'Available')}</select>
+        <span class="hint lock-note" hidden>On loan: changes only through Loans</span></label>
+      <label>Price (Rs.)<input type="number" name="price" min="0" max="100000" step="0.01"></label>
+      <label>Branch <span class="req">*</span><select name="branch_id" required>${opts(lk.branches, '', '— Select branch —')}</select></label>
+      <div class="actions wide"><button type="submit">${icon('circle-check', 'sm')}Save copy</button>${cancelButton()}</div>
+    </form>
+  </section>
+  <section class="card">
+    <form class="filters" data-filter="copies">
+      ${searchBox('q', p.q, 'Title or shelf')}
+      <select name="book_id" aria-label="Book">${opts(bookList, p.book_id, 'All books')}</select>
+      <select name="branch_id" aria-label="Branch">${opts(lk.branches, p.branch_id, 'All branches')}</select>
+      <select name="status" aria-label="Status">${enumOpts(lk.enums.copy_statuses, p.status, 'Any status')}</select>
+      <button>Filter</button><a class="btn ghost" href="#copies">Clear</a>
+    </form>
+    ${table(['Copy', 'Title', 'Branch', 'Shelf', 'Condition', 'Status', { t: 'Price', cls: 'num' }, { t: 'Times loaned', cls: 'num' }, ''],
+      copies.map(c => `<tr><td class="mono">${esc(c.book_id)}-${esc(c.copy_no)}</td><td>${esc(c.title)}</td><td>${esc(c.branch_name)}</td><td>${dash(c.shelf_location)}</td>
+        <td>${badge(c.condition)}</td><td>${badge(c.status)}${c.open_loan ? ` <span class="muted">loan ${esc(c.open_loan)}</span>` : ''}</td>
+        <td class="num">${c.price !== null ? money(c.price) : dash(null)}</td><td class="num">${esc(c.times_loaned)}</td>
+        <td><div class="row-actions"><button class="small ghost" data-edit="copy" data-row="${attr(c)}">${icon('pencil', 'sm')}Edit</button>
+          <button class="small danger" data-do="copy_delete" data-args='{"book_id":${Number(c.book_id)},"copy_no":${Number(c.copy_no)}}' data-confirm="Delete copy ${esc(c.book_id)}-${esc(c.copy_no)}?">${icon('trash-2', 'sm')}</button></div></td></tr>`),
+      'No copies match these filters.')}
+    <p class="muted">${copies.length} cop${copies.length === 1 ? 'y' : 'ies'}</p>
+  </section>`;
+};
+views.copies.after = () => {
+  const f = document.getElementById('copyForm');
+  f.addEventListener('submit', () => { f.dataset.extra = JSON.stringify({ book_id: f.book_id.value, status: f.status.value }); }, true);
+};
+
+/* ---------- Members ---------- */
+views.members = async p => {
+  const [lk, members] = await Promise.all([lookups(), get('members', p)]);
+  editors.member = row => startEdit('memberForm', row, `Edit member #${row.member_id}`);
+  return `
+  <section class="card">
+    <div class="card-head"><h2>Register a new member</h2><span class="note">validated in the browser, in PHP and by the database</span></div>
+    <form id="memberForm" class="form" data-action="member_save" data-next="member?id={member_id}">
+      <div class="form-errors"></div>
+      <input type="hidden" name="member_id" value="">
+      <label>Full name <span class="req">*</span><input name="full_name" required minlength="2" maxlength="100" pattern="[A-Za-z][A-Za-z .'\\-]*"></label>
+      <label>Email <span class="req">*</span><input type="email" name="email" required maxlength="100"></label>
+      <label>Phone <span class="hint">10 digits</span><input name="phone" inputmode="numeric" pattern="[0-9]{10}" maxlength="10"></label>
+      <label>Address<input name="address" maxlength="200"></label>
+      <label>Date of birth<input type="date" name="date_of_birth" max="${today()}"></label>
+      <label>Join date <span class="req">*</span><input type="date" name="join_date" required max="${today()}" value="${today()}"></label>
+      <label>Status <span class="req">*</span><select name="status">${enumOpts(lk.enums.member_statuses, 'Active')}</select></label>
+      <label>Membership plan <span class="req">*</span><select name="plan_id" required>${opts(lk.plans, '', '— Select plan —')}</select></label>
+      <div class="actions wide"><button type="submit">${icon('circle-check', 'sm')}Save member</button>${cancelButton()}</div>
+    </form>
+  </section>
+  <section class="card">
+    <form class="filters" data-filter="members">
+      ${searchBox('q', p.q, 'Name, email, phone or member ID')}
+      <select name="status" aria-label="Status">${enumOpts(lk.enums.member_statuses, p.status, 'Any status')}</select>
+      <select name="plan" aria-label="Plan">${opts(lk.plans.map(x => ({ id: x.id, label: x.plan_name })), p.plan, 'Any plan')}</select>
+      <button>Search</button><a class="btn ghost" href="#members">Clear</a>
+    </form>
+    ${table(['ID', 'Name', 'Email', 'Phone', { t: 'Age', cls: 'num' }, 'Plan', 'Status', { t: 'Books held', cls: 'num' }, { t: 'Fines due', cls: 'num' }, ''],
+      members.map(m => `<tr><td>${esc(m.member_id)}</td>
+        <td><a class="strong" href="#member?id=${esc(m.member_id)}">${esc(m.full_name)}</a><br><span class="muted">${dash(m.address)}</span></td>
+        <td>${dash(m.email)}</td><td>${dash(m.phone)}</td><td class="num">${dash(m.age)}</td><td>${esc(m.plan_name)}</td><td>${badge(m.status)}</td>
+        <td class="num">${esc(m.open_loans)} / ${esc(m.max_books)}</td>
+        <td class="num">${Number(m.outstanding_fines) > 0 ? `<b style="color:var(--err)">${money(m.outstanding_fines)}</b>` : dash(null)}</td>
+        <td><div class="row-actions"><a class="btn small ghost" href="#member?id=${esc(m.member_id)}">View</a>
+          <button class="small ghost" data-edit="member" data-row="${attr(m)}">${icon('pencil', 'sm')}Edit</button>
+          <button class="small danger" data-do="member_delete" data-args='{"member_id":${Number(m.member_id)}}' data-confirm="Delete ${esc(m.full_name)}? Members with loans or reservations cannot be deleted.">${icon('trash-2', 'sm')}</button></div></td></tr>`),
+      p.q || p.status || p.plan ? 'No members match your search.' : 'No members yet.')}
+    <p class="muted">${members.length} member(s) · age is a derived attribute (TIMESTAMPDIFF)</p>
+  </section>`;
+};
+
+/* ---------- Member detail ---------- */
+views.member = async p => {
+  const d = await get('member', { id: p.id });
+  const m = d.member;
+  document.getElementById('title').textContent = m.full_name;
+  const why = m.status !== 'Active' ? 'member is inactive' : Number(m.outstanding_fines) > 0 ? 'fines must be cleared' : 'borrowing limit reached';
+  return `
+  <div class="grid2">
+    <section class="card"><div class="card-head"><h2>Profile</h2><a class="btn small ghost" href="#members?q=${esc(m.member_id)}">Edit in Members</a></div>
+      <dl class="kv"><dt>Member ID</dt><dd>${esc(m.member_id)}</dd><dt>Email</dt><dd>${dash(m.email)}</dd><dt>Phone</dt><dd>${dash(m.phone)}</dd>
+        <dt>Address</dt><dd>${dash(m.address)}</dd><dt>Date of birth</dt><dd>${dash(m.date_of_birth)}${m.age !== null ? ` (age ${esc(m.age)})` : ''}</dd>
+        <dt>Joined</dt><dd>${esc(m.join_date)}</dd><dt>Status</dt><dd>${badge(m.status)}</dd></dl>
+    </section>
+    <section class="card"><div class="card-head"><h2>Borrowing position</h2></div>
+      <dl class="kv"><dt>Plan</dt><dd>${esc(m.plan_name)} · up to ${esc(m.max_books)} books for ${esc(m.loan_days)} days</dd>
+        <dt>Books held now</dt><dd>${esc(m.open_loans)} of ${esc(m.max_books)}</dd><dt>Fines outstanding</dt><dd>${money(m.outstanding_fines)}</dd>
+        <dt>Can borrow?</dt><dd>${d.can_borrow ? badge('Active') + ' Yes' : badge('Unpaid') + ' No — ' + esc(why)}</dd></dl>
+      <div class="actions" style="margin-top:14px">
+        ${d.can_borrow ? `<a class="btn accent" href="#loans?member_id=${esc(m.member_id)}">Issue a book</a>` : ''}
+        ${Number(m.outstanding_fines) > 0 ? `<a class="btn accent" href="#fines?q=${encodeURIComponent(m.full_name)}">Pay fines</a>` : ''}
+        <a class="btn ghost" href="#reservations?member_id=${esc(m.member_id)}">Reserve a book</a></div>
+    </section>
+  </div>
+  <section class="card" style="margin-top:18px"><div class="card-head"><h2>Loan history</h2></div>
+    ${table(['Loan', 'Book', 'Copy', 'Issued by', 'Issued', 'Due', 'Returned', 'Status'], d.loans.map(l => `<tr><td>${esc(l.loan_id)}</td><td>${esc(l.book_title)}</td><td>${esc(l.copy_no)}</td><td>${esc(l.issued_by)}</td><td class="nw">${esc(l.issue_date)}</td><td class="nw">${esc(l.due_date)}</td><td class="nw">${dash(l.return_date)}</td><td>${badge(l.status)}</td></tr>`), 'No loans yet.')}
+  </section>
+  <div class="grid2">
+    <section class="card"><div class="card-head"><h2>Reservations</h2></div>
+      ${table(['ID', 'Book', 'Reserved', 'Expires', 'Status'], d.reservations.map(r => `<tr><td>${esc(r.reservation_id)}</td><td>${esc(r.title)}</td><td class="nw">${esc(r.reserved_on)}</td><td class="nw">${dash(r.expires_on)}</td><td>${badge(r.status)}</td></tr>`), 'No reservations.')}
+    </section>
+    <section class="card"><div class="card-head"><h2>Fines</h2></div>
+      ${table(['Fine', 'Loan', { t: 'Amount', cls: 'num' }, { t: 'Paid', cls: 'num' }, { t: 'Balance', cls: 'num' }, 'Status'], d.fines.map(f => `<tr><td>${esc(f.fine_no)}</td><td>${esc(f.loan_id)}</td><td class="num">${money(f.amount)}</td><td class="num">${money(f.total_paid)}</td><td class="num">${money(f.balance)}</td><td>${badge(f.status)}</td></tr>`), 'No fines.')}
+    </section>
+  </div>`;
+};
+
+/* ---------- Loans ---------- */
+function returnForm(l) {
+  return `<form class="inline" data-action="loan_return" data-confirm="Return loan #${esc(l.loan_id)} (${esc(l.book_title)})?">
+    <input type="hidden" name="loan_id" value="${esc(l.loan_id)}">
+    <input type="date" name="return_date" value="${today()}" min="${esc(l.issue_date)}" max="${today()}" required aria-label="Return date">
+    <button class="small accent">${icon('undo-2', 'sm')}Return</button></form>`;
+}
+views.loans = async p => {
+  const [lk, d] = await Promise.all([lookups(), get('loans', p)]);
+  const f = p.filter || 'all';
+  const tabs = [['all', 'All loans'], ['open', 'On loan'], ['overdue', 'Overdue'], ['returned', 'Returned']]
+    .map(([k, t]) => `<a href="#loans?filter=${k}" class="${f === k ? 'active' : ''}">${t}</a>`).join('');
+  return `
+  <section class="card">
+    <div class="card-head"><h2>Issue a book</h2><span class="note">due date = issue date + the plan’s loan days (sp_issue_book)</span></div>
+    <form class="form" data-action="loan_issue" data-reset="member_id">
+      <div class="form-errors"></div>
+      <label class="wide">Member <span class="req">*</span><select name="member_id" required>${opts(lk.active_members, p.member_id, '— Select active member —')}</select></label>
+      <label class="wide">Available copy <span class="req">*</span><select name="copy" required>${opts(lk.available_copies, p.copy, `— Select an available copy (${lk.available_copies.length}) —`)}</select></label>
+      <label>Issued by <span class="req">*</span><select name="staff_id" required>${opts(lk.staff, '', '— Select staff —')}</select></label>
+      <label>Issue date <span class="req">*</span><input type="date" name="issue_date" required max="${today()}" value="${today()}"></label>
+      <div class="actions"><button type="submit" class="accent">${icon('arrow-left-right', 'sm')}Issue book</button></div>
+    </form>
+  </section>
+  <section class="card">
+    <div class="tabs">${tabs}</div>
+    <form class="filters" data-filter="loans" data-keep='${attr({ filter: f })}'>
+      ${searchBox('q', p.q, 'Member, book, loan ID or member ID')}
+      <button>Search</button><a class="btn ghost" href="#loans?filter=${f}">Clear</a>
+    </form>
+    ${table(['Loan', 'Member', 'Book (copy)', 'Issued by', 'Issued', 'Due', 'Returned', 'Status', ''],
+      d.loans.map(l => `<tr><td>${esc(l.loan_id)}</td><td><a href="#member?id=${esc(l.member_id)}">${esc(l.member_name)}</a></td>
+        <td>${esc(l.book_title)} <span class="muted">(${esc(l.copy_no)})</span></td><td>${esc(l.issued_by)}</td><td class="nw">${esc(l.issue_date)}</td>
+        <td class="nw">${esc(l.due_date)}${l.days_late > 0 ? `<br><span class="muted">${esc(l.days_late)} day(s) late</span>` : ''}</td>
+        <td class="nw">${dash(l.return_date)}</td><td>${badge(l.status)}</td>
+        <td><div class="row-actions">${l.return_date === null ? returnForm(l) : ''}
+          ${l.return_date === null && l.status !== 'Overdue' ? `<button class="small ghost" data-do="loan_renew" data-args='{"loan_id":${Number(l.loan_id)}}'>${icon('refresh-cw', 'sm')}Renew</button>` : ''}
+          <button class="small danger" data-do="loan_delete" data-args='{"loan_id":${Number(l.loan_id)}}' data-confirm="Delete loan #${esc(l.loan_id)}? Use this only to correct a mistake.">${icon('trash-2', 'sm')}</button></div></td></tr>`),
+      p.q ? 'No loans match your search.' : 'No loans here.')}
+    <p class="muted">${d.loans.length} loan(s) · from view LOAN_DETAILS · late returns are fined ${money(FINE_PER_DAY)} per day</p>
+  </section>`;
+};
+
+/* ---------- Returns ---------- */
+views.returns = async p => {
+  const d = await get('loans', { filter: p.show === 'overdue' ? 'overdue' : 'open', q: p.q });
+  return `
+  <section class="card">
+    <div class="card-head"><h2>Books currently borrowed</h2><span class="note">sp_return_book records the date, frees the copy and raises a fine of ${money(FINE_PER_DAY)} per late day</span></div>
+    <form class="filters" data-filter="returns">
+      ${searchBox('q', p.q, 'Member name, book title, loan ID or member ID')}
+      <select name="show" aria-label="Show"><option value="">All borrowed books</option><option value="overdue" ${p.show === 'overdue' ? 'selected' : ''}>Only overdue</option></select>
+      <button>Search</button><a class="btn ghost" href="#returns">Clear</a>
+    </form>
+    ${table(['Loan', 'Member', 'Book (copy)', 'Issued', 'Due', 'Status', { t: 'Days late', cls: 'num' }, { t: 'Fine if returned today', cls: 'num' }, 'Return'],
+      d.loans.map(l => `<tr><td>${esc(l.loan_id)}</td><td><a href="#member?id=${esc(l.member_id)}">${esc(l.member_name)}</a></td>
+        <td>${esc(l.book_title)} <span class="muted">(${esc(l.copy_no)})</span></td><td class="nw">${esc(l.issue_date)}</td><td class="nw">${esc(l.due_date)}</td><td>${badge(l.status)}</td>
+        <td class="num">${l.days_late > 0 ? esc(l.days_late) : dash(null)}</td><td class="num">${l.days_late > 0 ? money(l.days_late * FINE_PER_DAY) : 'No fine'}</td>
+        <td>${returnForm(l)}</td></tr>`),
+      p.q || p.show ? 'No borrowed books match your search.' : 'No books are out on loan right now.')}
+    <p class="muted">${d.loans.length} book(s) out on loan</p>
+  </section>
+  <section class="card"><div class="card-head"><h2>Recently returned</h2><a href="#loans?filter=returned">All returned loans</a></div>
+    ${table(['Loan', 'Member', 'Book', 'Due', 'Returned', { t: 'Fine', cls: 'num' }], d.recent_returns.map(r => `<tr><td>${esc(r.loan_id)}</td><td>${esc(r.member_name)}</td><td>${esc(r.book_title)}</td><td class="nw">${esc(r.due_date)}</td><td class="nw">${esc(r.return_date)}</td>
+      <td class="num">${r.fine_amount !== null ? `<a href="#fines?q=${esc(r.loan_id)}">${money(r.fine_amount)}</a>` : dash(null)}</td></tr>`), 'No returns recorded yet.')}
+  </section>`;
+};
+
+/* ---------- Reservations ---------- */
+views.reservations = async p => {
+  const [lk, rows] = await Promise.all([lookups(), get('reservations', p)]);
+  return `
+  <section class="card">
+    <div class="card-head"><h2>New reservation</h2><span class="note">leave expiry empty for the default 7 days (set by trigger)</span></div>
+    <form class="form" data-action="reservation_create" data-reset="member_id">
+      <div class="form-errors"></div>
+      <label>Member <span class="req">*</span><select name="member_id" required>${opts(lk.active_members, p.member_id, '— Select active member —')}</select></label>
+      <label class="wide">Book <span class="req">*</span><select name="book_id" required>${opts(lk.books, '', '— Select book —')}</select></label>
+      <label>Reserved on <span class="req">*</span><input type="date" name="reserved_on" required max="${today()}" value="${today()}"></label>
+      <label>Expires on <span class="hint">optional, max 30 days</span><input type="date" name="expires_on"></label>
+      <div class="actions"><button type="submit">${icon('bookmark', 'sm')}Reserve</button></div>
+    </form>
+  </section>
+  <section class="card">
+    <form class="filters" data-filter="reservations">
+      ${searchBox('q', p.q, 'Member, book or reservation ID')}
+      <select name="status" aria-label="Status">${enumOpts(['Pending', 'Fulfilled', 'Cancelled', 'Expired'], p.status, 'Any status')}</select>
+      <button>Search</button><a class="btn ghost" href="#reservations">Clear</a>
+    </form>
+    ${table(['ID', 'Member', 'Book', 'Reserved on', 'Expires on', 'Status', 'Copy free now?', ''],
+      rows.map(r => `<tr><td>${esc(r.reservation_id)}</td><td><a href="#member?id=${esc(r.member_id)}">${esc(r.full_name)}</a></td><td>${esc(r.title)}</td>
+        <td class="nw">${esc(r.reserved_on)}</td><td class="nw">${dash(r.expires_on)}</td><td>${badge(r.status)}</td>
+        <td>${r.status === 'Pending' ? (r.available_copies > 0 ? `Yes — ${esc(r.available_copies)} free` : 'No') : ''}</td>
+        <td><div class="row-actions">${r.status === 'Pending' ? `
+          ${r.available_copies > 0 ? `<a class="btn small accent" href="#loans?member_id=${esc(r.member_id)}">Issue</a>` : ''}
+          <button class="small ghost" data-do="reservation_extend" data-args='{"reservation_id":${Number(r.reservation_id)}}'>+7 days</button>
+          <button class="small ghost" data-do="reservation_cancel" data-args='{"reservation_id":${Number(r.reservation_id)}}'>Cancel</button>` : ''}
+          <button class="small danger" data-do="reservation_delete" data-args='{"reservation_id":${Number(r.reservation_id)}}' data-confirm="Delete reservation #${esc(r.reservation_id)}?">${icon('trash-2', 'sm')}</button></div></td></tr>`),
+      p.q || p.status ? 'No reservations match.' : 'No reservations yet.')}
+    <p class="muted">${rows.length} reservation(s) · expired ones are marked by sp_refresh_statuses</p>
+  </section>`;
+};
+
+/* ---------- Fines & payments ---------- */
+views.fines = async p => {
+  const [lk, d] = await Promise.all([lookups(), get('fines', p)]);
+  const t = d.totals;
+  const editing = p.edit ? d.fines.find(f => String(f.fine_no) === String(p.edit)) : null;
+  const fineCard = editing ? `
+    <div class="card-head"><h2>Edit fine #${esc(editing.fine_no)}</h2><a class="btn small ghost" href="#fines">Cancel</a></div>
+    <p class="muted">${esc(editing.member_name)} · loan ${esc(editing.loan_id)} · already paid ${money(editing.total_paid)} (the amount cannot go below this)</p>
+    <form class="form" data-action="fine_update" data-extra='${attr({ fine_no: editing.fine_no })}' data-reset="edit">
+      <div class="form-errors"></div>
+      <label>Amount (Rs.) <span class="req">*</span><input type="number" name="amount" required min="0.01" step="0.01" max="10000" value="${esc(editing.amount)}"></label>
+      <label class="wide">Reason <span class="req">*</span><input name="reason" required maxlength="200" value="${esc(editing.reason)}"></label>
+      <div class="actions"><button type="submit">Save fine</button></div>
+    </form>` : `
+    <div class="card-head"><h2>Raise a fine manually</h2></div>
+    <p class="muted">Late-return fines are created automatically on return. Use this for lost or damaged books.</p>
+    <form class="form" data-action="fine_create">
+      <div class="form-errors"></div>
+      <label class="wide">Loan <span class="req">*</span><select name="loan_id" required>${opts(lk.loans_without_fine, '', '— Select loan (one fine per loan) —')}</select></label>
+      <label>Amount (Rs.) <span class="req">*</span><input type="number" name="amount" required min="0.01" step="0.01" max="10000"></label>
+      <label>Fine date <span class="req">*</span><input type="date" name="fine_date" required max="${today()}" value="${today()}"></label>
+      <label class="wide">Reason <span class="req">*</span><input name="reason" required maxlength="200" placeholder="Damaged book"></label>
+      <div class="actions"><button type="submit">Raise fine</button></div>
+    </form>`;
+  return `
+  <section class="stats">
+    <div class="stat"><div class="lbl">Total fines raised</div><div class="val">${money(t.raised)}</div></div>
+    <div class="stat"><div class="lbl">Collected</div><div class="val">${money(t.paid)}</div></div>
+    <div class="stat ${Number(t.due) > 0 ? 'alert' : ''}"><div class="lbl">Outstanding</div><div class="val">${money(t.due)}</div></div>
+  </section>
+  <div class="grid2">
+    <section class="card" id="pay">
+      <div class="card-head"><h2>Record a payment</h2><span class="note">cannot exceed the balance (PHP + trigger)</span></div>
+      <form class="form" data-action="payment_create" data-reset="fine_no">
+        <div class="form-errors"></div>
+        <label class="wide">Fine <span class="req">*</span><select name="fine_no" required>${opts(lk.open_fines, p.fine_no, '— Select fine with a balance —')}</select></label>
+        <label>Amount (Rs.) <span class="req">*</span><input type="number" name="amount_paid" required min="0.01" step="0.01" max="10000"></label>
+        <label>Method <span class="req">*</span><select name="method" required>${enumOpts(lk.enums.payment_methods, 'UPI')}</select></label>
+        <label>Payment date <span class="req">*</span><input type="date" name="payment_date" required max="${today()}" value="${today()}"></label>
+        <div class="actions"><button type="submit" class="accent">${icon('indian-rupee', 'sm')}Record payment</button></div>
+      </form>
+    </section>
+    <section class="card">${fineCard}</section>
+  </div>
+  <section class="card" style="margin-top:18px">
+    <div class="card-head"><h2>Fines</h2><span class="note">view FINE_SUMMARY: balance = amount − SUM(payments)</span></div>
+    <form class="filters" data-filter="fines">
+      ${searchBox('q', p.q, 'Member, fine no. or loan ID')}
+      <select name="status" aria-label="Status"><option value="">All fines</option><option value="open" ${p.status === 'open' ? 'selected' : ''}>With a balance</option>${enumOpts(['Unpaid', 'Partially Paid', 'Paid'], p.status)}</select>
+      <button>Search</button><a class="btn ghost" href="#fines">Clear</a>
+    </form>
+    ${table(['Fine', 'Member', 'Loan', 'Date', 'Reason', { t: 'Amount', cls: 'num' }, { t: 'Paid', cls: 'num' }, { t: 'Balance', cls: 'num' }, 'Status', ''],
+      d.fines.map(f => `<tr><td>${esc(f.fine_no)}</td><td><a href="#member?id=${esc(f.member_id)}">${esc(f.member_name)}</a></td><td>${esc(f.loan_id)}</td><td class="nw">${esc(f.fine_date)}</td>
+        <td>${dash(f.reason)}</td><td class="num">${money(f.amount)}</td><td class="num">${money(f.total_paid)}</td><td class="num"><b>${money(f.balance)}</b></td><td>${badge(f.status)}</td>
+        <td><div class="row-actions">${Number(f.balance) > 0 ? `<a class="btn small accent" href="#fines?fine_no=${esc(f.fine_no)}">Pay</a>` : ''}
+          <a class="btn small ghost" href="#fines?edit=${esc(f.fine_no)}">${icon('pencil', 'sm')}Edit</a>
+          <button class="small danger" data-do="fine_delete" data-args='{"fine_no":${Number(f.fine_no)}}' data-confirm="Delete (waive) fine #${esc(f.fine_no)}? Fines with payments cannot be deleted.">${icon('trash-2', 'sm')}</button></div></td></tr>`),
+      p.q || p.status ? 'No fines match.' : 'No fines.')}
+  </section>
+  <section class="card"><div class="card-head"><h2>Payments</h2></div>
+    ${table(['Payment', 'Fine', 'Member', 'Date', 'Method', { t: 'Amount', cls: 'num' }, ''], d.payments.map(x => `<tr><td>${esc(x.payment_no)}</td><td>${esc(x.fine_no)}</td><td>${esc(x.member_name)}</td><td class="nw">${esc(x.payment_date)}</td><td>${esc(x.method)}</td><td class="num">${money(x.amount_paid)}</td>
+      <td><button class="small danger" data-do="payment_delete" data-args='{"payment_no":${Number(x.payment_no)}}' data-confirm="Delete payment #${esc(x.payment_no)}? The fine status is recalculated.">${icon('trash-2', 'sm')}</button></td></tr>`), 'No payments yet.')}
+  </section>`;
+};
+views.fines.after = p => { if (p.fine_no) document.getElementById('pay').scrollIntoView({ block: 'start' }); };
+
+/* ---------- Catalogue (master tables) ---------- */
+views.catalogue = async p => {
+  const d = await get('catalogue', p);
+  const tabs = Object.entries(d.tabs).map(([k, t]) => `<a href="#catalogue?t=${k}" class="${k === d.tab ? 'active' : ''}">${esc(t.title)}</a>`).join('');
+  const fieldHtml = Object.entries(d.fields).map(([name, f]) => {
+    const req = f.required ? ' required' : '';
+    const star = f.required ? ' <span class="req">*</span>' : '';
+    let input;
+    if (f.type === 'enum') input = `<select name="${name}"${req}>${enumOpts(f.values, '', '— Select —')}</select>`;
+    else if (f.type === 'fk') input = `<select name="${name}"${req}>${opts(d.fk[name], '', '— Select —')}</select>`;
+    else if (f.type === 'date') input = `<input type="date" name="${name}"${req}${f.not_future ? ` max="${today()}"` : ''}>`;
+    else if (f.type === 'int' || f.type === 'decimal') input = `<input type="number" name="${name}"${req} min="${f.min ?? ''}" max="${f.max ?? ''}" step="${f.type === 'int' ? 1 : 0.01}">`;
+    else input = `<input type="${f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text'}" name="${name}"${req} maxlength="${f.max || 200}">`;
+    return `<label>${esc(f.label)}${star}${input}</label>`;
+  }).join('');
+  editors.cat = row => startEdit('catForm', row, `Edit #${row.id}`);
+  const cols = Object.keys(d.fields);
+  return `
+  <div class="tabs">${tabs}</div>
+  <section class="card">
+    <div class="card-head"><h2>Add to ${esc(d.title)}</h2><span class="note">table ${esc(d.table)}</span></div>
+    <form id="catForm" class="form" data-action="catalogue_save" data-extra='${attr({ t: d.tab })}'>
+      <div class="form-errors"></div>
+      <input type="hidden" name="id" value="">
+      ${fieldHtml}
+      <div class="actions"><button type="submit">${icon('circle-check', 'sm')}Save</button>${cancelButton()}</div>
+    </form>
+  </section>
+  <section class="card">
+    <form class="filters" data-filter="catalogue" data-keep='${attr({ t: d.tab })}'>
+      ${searchBox('q', p.q, 'Search ' + d.title.toLowerCase())}
+      <button>Search</button><a class="btn ghost" href="#catalogue?t=${d.tab}">Clear</a>
+    </form>
+    ${table(['ID', ...cols.map(c => d.fields[c].label), ''],
+      d.rows.map(r => `<tr><td>${esc(r.id)}</td>${cols.map(c => {
+        let v = r[c];
+        if (d.fields[c].type === 'fk') { const o = (d.fk[c] || []).find(x => String(x.id) === String(v)); v = o ? o.label : v; }
+        if (d.fields[c].type === 'url' && v) return `<td><a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a></td>`;
+        return `<td>${dash(v)}</td>`;
+      }).join('')}
+        <td><div class="row-actions"><button class="small ghost" data-edit="cat" data-row="${attr(r)}">${icon('pencil', 'sm')}Edit</button>
+        <button class="small danger" data-do="catalogue_delete" data-args='${attr({ t: d.tab, id: r.id })}' data-confirm="Delete this record? Records still used elsewhere cannot be deleted.">${icon('trash-2', 'sm')}</button></div></td></tr>`),
+      p.q ? 'No records match.' : 'No records yet.')}
+    <p class="muted">${d.rows.length} record(s) in ${esc(d.table)}</p>
+  </section>`;
+};
+
+/* ---------- Reports ---------- */
+views.reports = async () => {
+  const d = await get('reports');
+  const s = d.summary;
+  const outstanding = Number(s.fines_raised) - Number(s.fines_paid);
+  return `
+  <section class="card no-print">
+    <div class="card-head"><h2>Library reports</h2>
+      <div class="actions">${d.reports.map(r => `<a class="btn small ghost" href="javascript:void(0)" onclick="document.getElementById('r-${r.key}').scrollIntoView({behavior:'smooth'})">${esc(r.title)}</a>`).join('')}
+        <button class="small accent" onclick="window.print()">${icon('printer', 'sm')}Print / save as PDF</button></div></div>
+    <p class="muted">Generated ${esc(d.generated)} from the live database. Every figure is a query.</p>
+  </section>
+  <section class="stats">
+    <div class="stat"><div class="lbl">Issued this month</div><div class="val">${esc(s.issued_month)}</div></div>
+    <div class="stat"><div class="lbl">Returned this month</div><div class="val">${esc(s.returned_month)}</div></div>
+    <div class="stat"><div class="lbl">On loan now</div><div class="val">${esc(s.on_loan)}</div></div>
+    <div class="stat ${s.overdue > 0 ? 'alert' : ''}"><div class="lbl">Overdue now</div><div class="val">${esc(s.overdue)}</div></div>
+    <div class="stat"><div class="lbl">Fines raised</div><div class="val">${money(s.fines_raised)}</div></div>
+    <div class="stat"><div class="lbl">Fines collected</div><div class="val">${money(s.fines_paid)}</div></div>
+    <div class="stat ${outstanding > 0 ? 'alert' : ''}"><div class="lbl">Fines outstanding</div><div class="val">${money(outstanding)}</div></div>
+  </section>
+  ${d.reports.map(r => `<section class="card report" id="r-${r.key}"><div class="card-head"><h2>${esc(r.title)}</h2></div>
+    <p class="muted">${esc(r.about)}</p>
+    ${r.error ? `<div class="msg error">${esc(r.error)}</div>` : resultTable(r.rows)}
+    <details class="no-print"><summary>Show SQL</summary><pre class="sql">${esc(r.sql)}</pre></details></section>`).join('')}`;
+};
+
+/* ---------- SQL queries ---------- */
+let QUERIES = null;
+views.queries = async p => {
+  if (!QUERIES) QUERIES = await get('queries');
+  const id = Number(p.q) || 1;
+  const q = QUERIES.find(x => x.id === id) || QUERIES[0];
+  const groups = {};
+  QUERIES.forEach(x => (groups[x.group] = groups[x.group] || []).push(x));
+  const nav = Object.entries(groups).map(([g, list]) => `<div class="grp">${esc(g)}</div>` +
+    list.map(x => `<a href="#queries?q=${x.id}" class="${x.id === q.id ? 'active' : ''}">${x.id}. ${esc(x.title)}</a>`).join('')).join('');
+  const paramValues = {};
+  q.params.forEach(pr => { paramValues[pr.name] = p[pr.name] ?? pr.default; });
+  let result;
+  try {
+    const r = await get('query_run', Object.assign({ id: q.id }, paramValues));
+    result = (r.bound.length ? `<p class="muted">Bound values: ${esc(r.bound.join(', '))}</p>` : '') + resultTable(r.rows);
+  } catch (e) {
+    if (e.offline) throw e;
+    result = `<div class="msg error">${esc(e.errors.join(' '))}</div>`;
+  }
+  const form = q.params.length ? `<form class="filters" data-filter="queries" data-keep='${attr({ q: q.id })}'>
+    ${q.params.map(pr => `<label>${esc(pr.label)}${pr.type === 'select'
+      ? `<select name="${pr.name}">${opts(pr.options, paramValues[pr.name])}</select>`
+      : `<input type="${pr.type === 'date' ? 'date' : 'number'}" name="${pr.name}" value="${esc(paramValues[pr.name])}">`}</label>`).join('')}
+    <button style="align-self:end">Run query</button></form>` : '';
+  return `<div class="qlayout"><nav class="qnav">${nav}</nav>
+    <section class="card"><div class="card-head"><h2>${q.id}. ${esc(q.title)}</h2><span class="badge">${esc(q.concept)}</span></div>
+      <p>${esc(q.explain)}</p>${form}<pre class="sql">${esc(q.sql)}</pre>${result}</section></div>`;
+};
+
+/* ---------- Tests ---------- */
+views.tests = async p => {
+  const intro = `<section class="card"><div class="card-head"><h2>Automated test suite</h2>
+    <button class="accent" id="runTests">${icon('flask-conical', 'sm')}Run all tests</button></div>
+    <p>Each test runs inside a database transaction (one SAVEPOINT per test) that is rolled back afterwards, so running the
+    tests never changes the library data. The same suite runs from the terminal with <code>php tests/run_tests.php</code>.</p>
+    <div id="testSummary"></div></section><section class="card" id="testResults"><p class="muted">Press “Run all tests”.</p></section>`;
+  return intro;
+};
+views.tests.after = () => {
+  document.getElementById('runTests').addEventListener('click', async e => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.lastChild.textContent = 'Running…';
+    try {
+      const d = await get('tests_run');
+      document.getElementById('testSummary').innerHTML = `<div class="msg ${d.passed === d.total ? 'success' : 'error'}">${icon(d.passed === d.total ? 'circle-check' : 'circle-alert')}<div><b>${d.passed} of ${d.total} tests passed</b> (${esc(d.at)}).</div></div>`;
+      document.getElementById('testResults').innerHTML = table(['ID', 'Module', 'Test case', 'Input', 'Expected result', 'Actual result', 'Status'],
+        d.results.map(r => `<tr><td>${esc(r.id)}</td><td>${esc(r.module)}</td><td>${esc(r.title)}</td><td>${esc(r.input)}</td><td>${esc(r.expected)}</td><td>${esc(r.actual)}</td><td>${badge(r.pass ? 'Pass' : 'Fail')}</td></tr>`));
+    } catch (err) {
+      if (err.offline) return showOffline(err.errors[0]);
+      document.getElementById('testSummary').innerHTML = `<div class="msg error">${esc(err.errors.join(' '))}</div>`;
+    } finally { btn.disabled = false; btn.lastChild.textContent = 'Run all tests'; }
+  });
+};
+
+/* ====================================================================
+   When the backend cannot be reached
+   ==================================================================== */
+function setDbInfo(ok, text) {
+  document.getElementById('dbinfo').innerHTML = `<span class="dot ${ok ? '' : 'off'}"></span>${esc(text)}`;
+}
+function showOffline(detail) {
+  setDbInfo(false, 'Not connected');
+  document.getElementById('title').textContent = 'Not connected';
+  document.getElementById('subtitle').textContent = '';
+  const fileMode = location.protocol === 'file:';
+  view.innerHTML = `<section class="card offline">
+    <div class="card-head"><h2>${icon('circle-alert')} The database backend is not running</h2></div>
+    <p class="muted">${esc(detail || '')}</p>
+    <p>This page shows and changes the real MySQL database through <code>api.php</code>. Start it first:</p>
+    <ol>
+      <li><b>Mac:</b> double-click <code>Start Library.command</code> in the project folder (first time: right-click → Open).</li>
+      <li><b>Windows:</b> double-click <code>Start Library.bat</code>.</li>
+      <li>Keep its window open. It opens this page for you at <code>http://127.0.0.1:8000/library.html</code>.</li>
+    </ol>
+    ${fileMode ? `<form class="filters" id="apiForm"><label style="flex:1">Backend address (only if the launcher showed a different port)
+      <input name="api" value="${esc(apiBase())}"></label><button style="align-self:end">Save</button></form>` : ''}
+    <div class="actions"><button class="accent" onclick="boot()">${icon('refresh-cw', 'sm')}Try again</button></div>
+  </section>`;
+  const f = document.getElementById('apiForm');
+  if (f) f.addEventListener('submit', e => { e.preventDefault(); store('libraryApi', f.api.value.trim()); boot(); });
+}
+
+/* ====================================================================
+   Start
+   ==================================================================== */
+async function boot() {
+  paintIcons(document);
+  view.innerHTML = '<div class="loading">Connecting to LibraryDB…</div>';
+  try {
+    const info = await get('ping');
+    FINE_PER_DAY = Number(info.fine_per_day) || 5;
+    setDbInfo(true, `${info.database} · MySQL ${String(info.version).split('-')[0]}`);
+    await lookups(true);
+    render();
+  } catch (e) {
+    showOffline(e.errors ? e.errors[0] : String(e));
+  }
+}
+boot();
+</script>
+</body>
+</html>
