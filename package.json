@@ -1,5 +1,14 @@
 {
   "dependencies": {
     "sql.js": "^1.15.1"
+  },
+  "name": "folio-library-workspace",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/serve.cjs",
+    "test": "node tests/portals.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
   }
 }

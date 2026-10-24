@@ -25,7 +25,7 @@ window.LibraryDemo = (() => {
   }
   function exportBytes(){try{return db.export()}finally{register()}}
   async function ready(){if(readyPromise)return readyPromise;return readyPromise=(async()=>{
-    const [SQL,c,seed,views]=await Promise.all([initSqlJs({locateFile:f=>'vendor/'+f}),fetch('config.json').then(r=>r.json()),fetch('seed.sqlite').then(r=>r.arrayBuffer()),fetch('views.sql').then(r=>r.text())]);config=c;initial=new Uint8Array(seed);
+    const [SQL,c,seed,views]=await Promise.all([initSqlJs({locateFile:f=>'/vendor/'+f}),fetch('/config.json').then(r=>r.json()),fetch('/seed.sqlite').then(r=>r.arrayBuffer()),fetch('/views.sql').then(r=>r.text())]);config=c;initial=new Uint8Array(seed);
     let saved;try{saved=localStorage.getItem(KEY)}catch{fail('Enable browser storage to save your demo changes.')}
     db=new SQL.Database(saved?Uint8Array.from(atob(saved),c=>c.charCodeAt(0)):initial);
     engine=SQL;register();
@@ -91,10 +91,53 @@ window.LibraryDemo = (() => {
   }refresh();return result;}
   function transaction(action,d){refresh();const backup=exportBytes();run('BEGIN');let committed=false;try{const result=write(action,d);run('COMMIT');committed=true;persist();return result}catch(e){if(!committed)run('ROLLBACK');else {db.close();db=new engine.Database(backup);register();}throw e}}
 
-  async function call(action,p={},body=null){await ready();try{if(body!==null){const data=transaction(action,body);return {ok:true,data,message:action==='loan_return'?`Book returned. Late fine: ₹${data.fine}.`:'Changes saved to your browser.'}}return {ok:true,data:read(action,p),message:''}}catch(e){let msg=e.message;if(/FOREIGN KEY/.test(msg))msg='This record is missing or still referenced by other records. Remove dependent records first.';if(/UNIQUE/.test(msg))msg='This record already exists. ISBNs, emails and pending reservations must be unique.';const err=new Error(msg);err.errors=[msg];throw err}}
+  const isAdmin=()=>/^\/admin(?:\.html|\/)?$/.test(location.pathname);
+  const requireAdmin=()=>{if(!isAdmin())fail('This action is available in the admin workspace only.');};
+  function readerId(){const id=Number(sessionStorage.getItem('folio-reader-id')||207);exists('MEMBER','member_id',id);return id;}
+  function readerRead(action,p){
+    if(action==='reader_accounts')return rows('SELECT member_id,full_name,status FROM MEMBER ORDER BY full_name');
+    if(action==='reader_catalogue')return {books:books(p),categories:rows('SELECT category_id id,category_name label FROM CATEGORY ORDER BY category_name')};
+    if(action==='reader_profile')return read('member',{id:readerId()});
+    fail('This action is available in the admin workspace only.');
+  }
+  function readerWrite(action,d){
+    const member_id=readerId();
+    if(action==='reader_reserve')return transaction('reservation_create',{member_id,book_id:d.book_id,reserved_on:today()});
+    if(action==='reader_cancel'){
+      const r=exists('RESERVATION','reservation_id',d.reservation_id);
+      if(r.member_id!==member_id)fail('You can only cancel your own reservations.');
+      return transaction('reservation_cancel',{reservation_id:r.reservation_id});
+    }
+    if(action==='reader_renew'){
+      const l=exists('LOAN','loan_id',d.loan_id);
+      if(l.member_id!==member_id)fail('You can only renew your own loans.');
+      return transaction('loan_renew',{loan_id:l.loan_id});
+    }
+    fail('This action is available in the admin workspace only.');
+  }
+  async function call(action,p={},body=null){
+    await ready();
+    try{
+      if(action.startsWith('reader_')){
+        if(!/^\/user(?:\.html|\/)?$/.test(location.pathname)&&action!=='reader_accounts')fail('Open the reader portal to use this action.');
+        refresh();
+        const data=body!==null?readerWrite(action,body):readerRead(action,p);
+        return {ok:true,data,message:body!==null?'Your library activity has been updated.':''};
+      }
+      requireAdmin();
+      if(body!==null){const data=transaction(action,body);return {ok:true,data,message:action==='loan_return'?`Book returned. Late fine: ₹${data.fine}.`:'Changes saved to your browser.'};}
+      return {ok:true,data:read(action,p),message:''};
+    }catch(e){
+      let msg=e.message;
+      if(/FOREIGN KEY/.test(msg))msg='This record is missing or still referenced by other records. Remove dependent records first.';
+      if(/UNIQUE/.test(msg))msg='This record already exists. ISBNs, emails and pending reservations must be unique.';
+      const err=new Error(msg);err.errors=[msg];throw err;
+    }
+  }
+
   function download(name,data,type){const url=URL.createObjectURL(new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-  async function exportDB(){await ready();download('folio-library.sqlite',exportBytes(),'application/vnd.sqlite3')}
-  async function reset(){await ready();if(confirm('Reset your browser demo? All local changes will be removed. Export a backup first if needed.')){localStorage.removeItem(KEY);location.reload()}}
+  async function exportDB(){requireAdmin();await ready();download('folio-library.sqlite',exportBytes(),'application/vnd.sqlite3')}
+  async function reset(){requireAdmin();await ready();if(confirm('Reset your browser demo? All local changes will be removed. Export a backup first if needed.')){localStorage.removeItem(KEY);location.reload()}}
   function tests(){const results=[];const addTest=(module,title,fn)=>{run('SAVEPOINT test');let pass=false,actual;try{pass=fn()!==false;actual=pass?'Passed':'Assertion failed'}catch(e){actual=e.message}finally{run('ROLLBACK TO test');run('RELEASE test')}results.push({id:results.length+1,module,title,input:'Isolated transaction',expected:'Business rule enforced',actual,pass})};
     const rejects=fn=>{try{fn();return false}catch{return true}};
     addTest('Schema','All 14 relational tables exist',()=>num("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")===14);
@@ -147,5 +190,6 @@ window.LibraryDemo = (() => {
     scenario('Books','Editing a book preserves its author relationship',f=>{const a=one('SELECT author_id FROM BOOK_AUTHOR WHERE book_id=?',[f.book]),b=exists('BOOK','book_id',f.book);write('book_save',{...b,title:'Edited Title',authors:[a.author_id]});return books({q:'Edited Title'}).some(b=>b.book_id===f.book&&b.authors==='Test Author')});
     return {results,passed:results.filter(r=>r.pass).length,total:results.length,at:new Date().toLocaleString('en-IN')};
   }
+  window.addEventListener('storage',event=>{if(event.key===KEY)location.reload()});
   return {call,ready,exportDB,reset};
 })();

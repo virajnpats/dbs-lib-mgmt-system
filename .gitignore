@@ -7,3 +7,4 @@ node_modules/
 original/config.local.php
 original/backups/*
 !original/backups/.htaccess
+test-results/

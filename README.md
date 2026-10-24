@@ -6,7 +6,31 @@ A refined, deployable demo of the supplied Library Management System.
 
 ## Run locally
 
-Serve `public/` with a static web server: `python3 -m http.server 4173 --directory public`, then open http://localhost:4173.
+Run `npm install` then `npm start`, and open http://127.0.0.1:4173. The bundled local server supports the same clean routes as Vercel.
+
+## Separate admin and reader pages
+
+| Route | Page | Capabilities |
+| --- | --- | --- |
+| `/` | Portal chooser | Open the admin workspace or choose a sample reader profile |
+| `/admin` | Admin workspace | Manage books, copies, members, loans, returns, reservations, fines, payments, reports, SQL examples, tests, backups and reset |
+| `/user` | Reader portal | Search/filter books, reserve titles, cancel own pending reservations, renew eligible own loans, and view own profile, loans, reservations and fines |
+
+`public/admin.html` and `public/user.html` are separate documents. Vercel rewrites the clean routes to those files. Reader navigation uses `#catalogue`, `#loans`, `#reservations` and `#account`; admin navigation retains its original sections. Old root URLs with an admin hash redirect to `/admin` with that hash preserved.
+
+These are **page routes**, not separate HTTP backend endpoints. Both pages share the same browser SQLite database. `reader.js` supplies the dedicated reader interface; `demo.js` supplies shared data operations with separate action allowlists.
+
+Reader actions are `reader_accounts`, `reader_catalogue`, `reader_profile`, `reader_reserve`, `reader_cancel` and `reader_renew`. Profile and reservation writes derive the member ID from the selected demo profile. Cancel and renewal operations verify that the reservation or loan belongs to that member. Reader calls cannot run admin operations, query all members, record payments, issue/return books, run arbitrary management queries, or export the library database. Staff still record book collection, returns and payments.
+
+**Demo access model:** the admin page is intentionally open, and the reader selector chooses a sample identity. These browser checks separate the workflows but are not authentication or a production security boundary. Secure deployment requires server-side login, roles and ownership checks. The portal chooser and reader page state this explicitly. Switching profiles is for presentation only.
+
+The selected reader is remembered per browser tab. Both portals share local data; another open tab reloads when the database is changed to avoid stale copies overwriting updates.
+
+## Browser regression tests
+
+Run `npm test` after `npm install`. The tests start their own local server and use installed Google Chrome through Playwright. Set `PLAYWRIGHT_CHANNEL` to use another installed browser channel. Screenshots and the result report are written to ignored `test-results/`.
+
+The 24 portal checks cover separate routes, reader ownership, blocked admin actions, search, reservations, admin issue/return, reader renewal, fine visibility, reload persistence and layouts at 390/820/1440px. They also rerun the 58 database tests. To check an existing deployment, set `PORTAL_URL` before running the same tests; this uses an isolated browser context with a fresh demo database.
 
 ## Functionality
 
